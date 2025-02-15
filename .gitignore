@@ -1,0 +1,10 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/
+# Virtual environments
+.venv

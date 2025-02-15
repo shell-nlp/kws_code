@@ -1,0 +1,13 @@
+[project]
+name = "kws-code"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.8",
+    "numpy>=2.2.3",
+    "sherpa-onnx>=1.10.44",
+    "sounddevice>=0.5.1",
+    "uvicorn[standard]>=0.34.0",
+]
