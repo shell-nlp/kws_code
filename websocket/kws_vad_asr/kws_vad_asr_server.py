@@ -4,8 +4,10 @@ from pathlib import Path
 import sounddevice as sd
 import sherpa_onnx
 import numpy as np
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 model_root_path = "/home/dev/liuyu/project/kws_code"
+app = FastAPI()
 
 
 def get_args():
@@ -116,70 +118,72 @@ def get_args():
     return parser.parse_args()
 
 
-def main():
-    args = get_args()
+args = get_args()
 
-    devices = sd.query_devices()
-    if len(devices) == 0:
-        print("No microphone devices found")
-        sys.exit(0)
+devices = sd.query_devices()
+if len(devices) == 0:
+    print("No microphone devices found")
+    sys.exit(0)
 
-    print(devices)
-    default_input_device_idx = sd.default.device[0]
-    print(f'Use default device: {devices[default_input_device_idx]["name"]}')
+print(devices)
+default_input_device_idx = sd.default.device[0]
+print(f'Use default device: {devices[default_input_device_idx]["name"]}')
 
-    assert Path(
-        args.keywords_file
-    ).is_file(), (
-        f"keywords_file : {args.keywords_file} not exist, please provide a valid path."
-    )
-    sample_rate = 16000
-    # 加载KWS模型
-    keyword_spotter = sherpa_onnx.KeywordSpotter(
-        tokens=args.tokens,
-        encoder=args.encoder,
-        decoder=args.decoder,
-        joiner=args.joiner,
-        num_threads=args.num_threads,
-        max_active_paths=args.max_active_paths,
-        keywords_file=args.keywords_file,
-        keywords_score=args.keywords_score,
-        keywords_threshold=args.keywords_threshold,
-        num_trailing_blanks=args.num_trailing_blanks,
-        provider=args.provider,
-    )
-    # 加载VAD模型
-    vad_config = sherpa_onnx.VadModelConfig()
-    vad_config.silero_vad.model = args.silero_vad_model
-    vad_config.silero_vad.min_silence_duration = 0.25
-    vad_config.silero_vad.min_speech_duration = 0.25
-    vad_config.sample_rate = sample_rate
+assert Path(
+    args.keywords_file
+).is_file(), (
+    f"keywords_file : {args.keywords_file} not exist, please provide a valid path."
+)
+sample_rate = 16000
+# 加载KWS模型
+keyword_spotter = sherpa_onnx.KeywordSpotter(
+    tokens=args.tokens,
+    encoder=args.encoder,
+    decoder=args.decoder,
+    joiner=args.joiner,
+    num_threads=args.num_threads,
+    max_active_paths=args.max_active_paths,
+    keywords_file=args.keywords_file,
+    keywords_score=args.keywords_score,
+    keywords_threshold=args.keywords_threshold,
+    num_trailing_blanks=args.num_trailing_blanks,
+    provider=args.provider,
+)
+# 加载VAD模型
+vad_config = sherpa_onnx.VadModelConfig()
+vad_config.silero_vad.model = args.silero_vad_model
+vad_config.silero_vad.min_silence_duration = 0.25
+vad_config.silero_vad.min_speech_duration = 0.25
+vad_config.sample_rate = sample_rate
 
-    window_size = vad_config.silero_vad.window_size
-    vad = sherpa_onnx.VoiceActivityDetector(vad_config, buffer_size_in_seconds=100)
-    # 加载ASR模型
-    recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
-        model=f"{model_root_path}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.onnx",
-        tokens=f"{model_root_path}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt",
-        num_threads=2,
-        use_itn=True,
-        debug=False,
-    )
+window_size = vad_config.silero_vad.window_size
+vad = sherpa_onnx.VoiceActivityDetector(vad_config, buffer_size_in_seconds=100)
+# 加载ASR模型
+recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
+    model=f"{model_root_path}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.onnx",
+    tokens=f"{model_root_path}/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt",
+    num_threads=2,
+    use_itn=True,
+    debug=False,
+)
 
-    print("Started! Please speak")
+print("Started! Please speak")
 
+
+@app.websocket("/ws")
+async def main(websocket: WebSocket):
+    await websocket.accept()
     idx = 0
-
     samples_per_read = int(0.1 * sample_rate)  # 0.1 second = 100 ms
     kws_stream = keyword_spotter.create_stream()
     # VAD变量
     kws_flag = False
     buffer = []
     texts = []
-    with sd.InputStream(channels=1, dtype="float32", samplerate=sample_rate) as s:
+    try:
         while True:
-            samples, _ = s.read(samples_per_read)  # a blocking read
-            samples = samples.reshape(-1)
+            data = await websocket.receive_bytes()
+            samples = np.frombuffer(data, dtype=np.float32)
             if not kws_flag:  # 如果还没有检测到关键词测一直执行 kws模型
                 kws_stream.accept_waveform(sample_rate, samples)
                 if keyword_spotter.is_ready(kws_stream):
@@ -215,10 +219,12 @@ def main():
                         texts.append(text)
                         print(f"ASR {idx}: {text}")
                     kws_flag = False
+    except WebSocketDisconnect:
+        print("Client disconnected")
 
 
+# 启动 FastAPI 应用
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nCaught Ctrl + C. Exiting")
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8887)
