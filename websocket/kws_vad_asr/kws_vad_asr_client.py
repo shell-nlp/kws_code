@@ -13,10 +13,10 @@ async def send_audio(websocket, sample_rate, samples_per_read):
             samples = samples.reshape(-1)
             await websocket.send(samples.tobytes())
             # 接收来自服务器的文本消息
-            message = await websocket.recv()
-            if message:
-                if json.loads(message)["result"]:
-                    print(f"Received from server: {message}")
+            # message = await websocket.recv()
+            # if message:
+            #     if json.loads(message)["result"]:
+            #         print(f"Received from server: {message}")
 
 
 async def main():
