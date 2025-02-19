@@ -4,10 +4,6 @@ import sys
 import sounddevice as sd
 import websockets
 import sys
-import os
-
-# os.path.abspath(__file__)
-sys.path.append(__file__)
 
 
 async def send_audio(websocket, sample_rate, samples_per_read):

@@ -4,9 +4,8 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import sherpa_onnx
 import numpy as np
-import sys
 
-sys.path.append(__file__)
+model_root_path = "/home/dev/liuyu/project/kws_code"
 app = FastAPI()
 
 
@@ -19,14 +18,14 @@ def get_args():
     parser.add_argument(
         "--tokens",
         type=str,
-        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt",
+        default=f"{model_root_path}/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt",
         help="Path to tokens.txt",
     )
 
     parser.add_argument(
         "--encoder",
         type=str,
-        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx",
+        default=f"{model_root_path}/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx",
         help="Path to the transducer encoder model",
     )
 
@@ -34,14 +33,14 @@ def get_args():
         "--decoder",
         type=str,
         help="Path to the transducer decoder model",
-        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.onnx",
+        default=f"{model_root_path}/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.onnx",
     )
 
     parser.add_argument(
         "--joiner",
         type=str,
         help="Path to the transducer joiner model",
-        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.onnx",
+        default=f"{model_root_path}/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.onnx",
     )
 
     parser.add_argument(
@@ -85,7 +84,7 @@ def get_args():
         ▁HE LL O ▁WORLD
         x iǎo ài t óng x ué 
         """,
-        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/test_wavs/test_keywords.txt",
+        default=f"{model_root_path}/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/test_wavs/test_keywords.txt",
     )
 
     parser.add_argument(
