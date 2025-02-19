@@ -5,6 +5,7 @@ import sounddevice as sd
 import sherpa_onnx
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import json
 
 model_root_path = "/home/dev/liuyu/project/kws_code"
 app = FastAPI()
@@ -190,7 +191,12 @@ async def main(websocket: WebSocket):
                     keyword_spotter.decode_stream(kws_stream)
                     result = keyword_spotter.get_result(kws_stream)
                     if result:  # 语音唤醒检测到关键词
-                        print(f" KWS {idx}: {result }")
+                        # await websocket.send_text(
+                        #     json.dumps(
+                        #         {"result": "KWS {idx}: {result }"}, ensure_ascii=False
+                        #     )
+                        # )
+                        print(f"KWS {idx}: {result }")
                         idx += 1
                         # Remember to reset stream right after detecting a keyword
                         keyword_spotter.reset_stream(kws_stream)
