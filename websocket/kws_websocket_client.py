@@ -3,6 +3,11 @@ import json
 import sys
 import sounddevice as sd
 import websockets
+import sys
+import os
+
+# os.path.abspath(__file__)
+sys.path.append(__file__)
 
 
 async def send_audio(websocket, sample_rate, samples_per_read):
@@ -32,7 +37,7 @@ async def main():
 
     sample_rate = 16000
     samples_per_read = int(0.1 * sample_rate)  # 0.1 second = 100 ms
-    uri = "ws://localhost:8000/ws"  # 替换为实际的IP地址
+    uri = "ws://localhost:8887/ws"  # 替换为实际的IP地址
     async with websockets.connect(uri) as websocket:
         await send_audio(websocket, sample_rate, samples_per_read)
 

@@ -1,14 +1,12 @@
 import argparse
-import json
+import sys
 from pathlib import Path
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import sounddevice as sd
 import sherpa_onnx
-import numpy as np
+import sys
 
-app = FastAPI()
+sys.path.append(__file__)
 
-
-# 定义参数解析函数
 def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -17,14 +15,14 @@ def get_args():
     parser.add_argument(
         "--tokens",
         type=str,
-        default="./sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt",
+        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt",
         help="Path to tokens.txt",
     )
 
     parser.add_argument(
         "--encoder",
         type=str,
-        default="./sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx",
+        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx",
         help="Path to the transducer encoder model",
     )
 
@@ -32,14 +30,14 @@ def get_args():
         "--decoder",
         type=str,
         help="Path to the transducer decoder model",
-        default="./sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.onnx",
+        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.onnx",
     )
 
     parser.add_argument(
         "--joiner",
         type=str,
         help="Path to the transducer joiner model",
-        default="./sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.onnx",
+        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.onnx",
     )
 
     parser.add_argument(
@@ -60,7 +58,9 @@ def get_args():
         "--max-active-paths",
         type=int,
         default=4,
-        help="It specifies number of active paths to keep during decoding.",
+        help="""
+        It specifies number of active paths to keep during decoding.
+        """,
     )
 
     parser.add_argument(
@@ -83,7 +83,7 @@ def get_args():
         ▁HE LL O ▁WORLD
         x iǎo ài t óng x ué 
         """,
-        default="./sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/test_wavs/test_keywords.txt",
+        default="../sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/test_wavs/test_keywords.txt",
     )
 
     parser.add_argument(
@@ -109,63 +109,62 @@ def get_args():
     return parser.parse_args()
 
 
-# 初始化参数
-args = get_args()
+def main():
+    args = get_args()
 
-# 检查文件是否存在
-assert Path(
-    args.keywords_file
-).is_file(), (
-    f"keywords_file : {args.keywords_file}  not exist, please provide a valid path."
-)
+    devices = sd.query_devices()
+    if len(devices) == 0:
+        print("No microphone devices found")
+        sys.exit(0)
 
-# 初始化 KeywordSpotter
-keyword_spotter = sherpa_onnx.KeywordSpotter(
-    tokens=args.tokens,
-    encoder=args.encoder,
-    decoder=args.decoder,
-    joiner=args.joiner,
-    num_threads=args.num_threads,
-    max_active_paths=args.max_active_paths,
-    keywords_file=args.keywords_file,
-    keywords_score=args.keywords_score,
-    keywords_threshold=args.keywords_threshold,
-    num_trailing_blanks=args.num_trailing_blanks,
-    provider=args.provider,
-)
+    print(devices)
+    default_input_device_idx = sd.default.device[0]
+    print(f'Use default device: {devices[default_input_device_idx]["name"]}')
 
+    assert Path(
+        args.keywords_file
+    ).is_file(), (
+        f"keywords_file : {args.keywords_file} not exist, please provide a valid path."
+    )
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    stream = keyword_spotter.create_stream()
+    keyword_spotter = sherpa_onnx.KeywordSpotter(
+        tokens=args.tokens,
+        encoder=args.encoder,
+        decoder=args.decoder,
+        joiner=args.joiner,
+        num_threads=args.num_threads,
+        max_active_paths=args.max_active_paths,
+        keywords_file=args.keywords_file,
+        keywords_score=args.keywords_score,
+        keywords_threshold=args.keywords_threshold,
+        num_trailing_blanks=args.num_trailing_blanks,
+        provider=args.provider,
+    )
+
+    print("Started! Please speak")
+
+    idx = 0
+
     sample_rate = 16000
-
-    try:
+    samples_per_read = int(0.1 * sample_rate)  # 0.1 second = 100 ms
+    stream = keyword_spotter.create_stream()
+    with sd.InputStream(channels=1, dtype="float32", samplerate=sample_rate) as s:
         while True:
-            data = await websocket.receive_bytes()
-            samples = np.frombuffer(data, dtype=np.float32)
+            samples, _ = s.read(samples_per_read)  # a blocking read
+            samples = samples.reshape(-1)
             stream.accept_waveform(sample_rate, samples)
             if keyword_spotter.is_ready(stream):
                 keyword_spotter.decode_stream(stream)
                 result = keyword_spotter.get_result(stream)
                 if result:
-                    await websocket.send_text(
-                        json.dumps({"result": result}, ensure_ascii=False)
-                    )
-                    print(result)
+                    print(f"{idx}: {result }")
+                    idx += 1
                     # Remember to reset stream right after detecting a keyword
                     keyword_spotter.reset_stream(stream)
-                else:
-                    await websocket.send_text(json.dumps({"result": None}))
-            else:
-                await websocket.send_text(json.dumps({"result": None}))
-    except WebSocketDisconnect:
-        print("Client disconnected")
 
 
-# 启动 FastAPI 应用
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nCaught Ctrl + C. Exiting")
