@@ -11,3 +11,7 @@ dependencies = [
     "sounddevice>=0.5.1",
     "uvicorn[standard]>=0.34.0",
 ]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
