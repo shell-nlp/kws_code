@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=2.2.3",
     "sherpa-onnx>=1.10.44",
     "sounddevice>=0.5.1",
+    "soundfile>=0.13.1",
     "uvicorn[standard]>=0.34.0",
 ]
 
