@@ -171,18 +171,18 @@ recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
 tts_config = sherpa_onnx.OfflineTtsConfig(
     model=sherpa_onnx.OfflineTtsModelConfig(
         kokoro=sherpa_onnx.OfflineTtsKokoroModelConfig(
-            model=f"{model_root_path}/kokoro-multi-lang-v1_0/model.onnx",
-            voices=f"{model_root_path}/kokoro-multi-lang-v1_0/voices.bin",
-            tokens=f"{model_root_path}/kokoro-multi-lang-v1_0/tokens.txt",
-            data_dir=f"{model_root_path}/kokoro-multi-lang-v1_0/espeak-ng-data",
-            dict_dir=f"{model_root_path}/kokoro-multi-lang-v1_0/dict",
-            lexicon=f"{model_root_path}/kokoro-multi-lang-v1_0/lexicon-zh.txt",
+            model=f"{model_root_path}/kokoro-multi-lang-v1_1/model.onnx",
+            voices=f"{model_root_path}/kokoro-multi-lang-v1_1/voices.bin",
+            tokens=f"{model_root_path}/kokoro-multi-lang-v1_1/tokens.txt",
+            data_dir=f"{model_root_path}/kokoro-multi-lang-v1_1/espeak-ng-data",
+            dict_dir=f"{model_root_path}/kokoro-multi-lang-v1_1/dict",
+            lexicon=f"{model_root_path}/kokoro-multi-lang-v1_1/lexicon-zh.txt",
         ),
         provider="cpu",
         debug=False,
         num_threads=2,
     ),
-    rule_fsts=f"{model_root_path}/kokoro-multi-lang-v1_0/phone-zh.fst,{model_root_path}/kokoro-multi-lang-v1_0/date-zh.fst,{model_root_path}/kokoro-multi-lang-v1_0/number-zh.fst",
+    rule_fsts=f"{model_root_path}/kokoro-multi-lang-v1_1/phone-zh.fst,{model_root_path}/kokoro-multi-lang-v1_1/date-zh.fst,{model_root_path}/kokoro-multi-lang-v1_1/number-zh.fst",
     max_num_sentences=1,
 )
 tts = sherpa_onnx.OfflineTts(tts_config)
@@ -279,28 +279,34 @@ async def main(websocket: WebSocket):
                         start = time.time()
                         """47->zf_xiaoxiao, 48->zf_xiaoyi,49->zm_yunjian, 50->zm_yunxi,
                         51->zm_yunxia, 52->zm_yunyang,"""
-                        audio = tts.generate("床前明月光", sid=47, speed=1.0)
-                        end = time.time()
-                        if len(audio.samples) == 0:
-                            print(
-                                "Error in generating audios. Please read previous error messages."
+                        for i in range(47, 48):
+                            sid = i
+                            audio = tts.generate(
+                                "如果在解压过程中遇到错误，可能是因为文件损坏或权限不足。请确保文件完整性，并以适当权限运行命令。",
+                                sid=sid,
+                                speed=1.0,
                             )
-                            return
-                        elapsed_seconds = end - start
-                        audio_duration = len(audio.samples) / audio.sample_rate
-                        real_time_factor = elapsed_seconds / audio_duration
+                            end = time.time()
+                            if len(audio.samples) == 0:
+                                print(
+                                    "Error in generating audios. Please read previous error messages."
+                                )
+                                return
+                            elapsed_seconds = end - start
+                            audio_duration = len(audio.samples) / audio.sample_rate
+                            real_time_factor = elapsed_seconds / audio_duration
 
-                        sf.write(
-                            "./adudi.wav",
-                            audio.samples,
-                            samplerate=audio.sample_rate,
-                            subtype="PCM_16",
-                        )
-                        print(f"Elapsed seconds: {elapsed_seconds:.3f}")
-                        print(f"Audio duration in seconds: {audio_duration:.3f}")
-                        print(
-                            f"RTF: {elapsed_seconds:.3f}/{audio_duration:.3f} = {real_time_factor:.3f}"
-                        )
+                            sf.write(
+                                f"./adudi_sid_{sid}.wav",
+                                audio.samples,
+                                samplerate=audio.sample_rate,
+                                subtype="PCM_16",
+                            )
+                            print(f"Elapsed seconds: {elapsed_seconds:.3f}")
+                            print(f"Audio duration in seconds: {audio_duration:.3f}")
+                            print(
+                                f"RTF: {elapsed_seconds:.3f}/{audio_duration:.3f} = {real_time_factor:.3f}"
+                            )
 
                     kws_flag = False
     except WebSocketDisconnect:

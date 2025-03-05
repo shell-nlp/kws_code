@@ -8,6 +8,8 @@ wheels/
 sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/
 sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
 kokoro-multi-lang-v1_0/
+kokoro-multi-lang-v1_1/
+*.wav
 # Virtual environments
 .venv
 *.bz2
