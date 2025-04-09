@@ -294,36 +294,50 @@ async def main(websocket: WebSocket):
         while True:
             data = await websocket.receive_bytes()
             wav_file = io.BytesIO(data)
-            with wave.open(wav_file, "rb") as wf:
-                # 获取 WAV 文件的基本信息
-                num_channels = wf.getnchannels()  # 声道数
-                sample_width = wf.getsampwidth()  # 采样宽度（字节数）
-                frame_rate = wf.getframerate()  # 采样率
-                num_frames = wf.getnframes()  # 总帧数
-                # 读取音频数据
-                raw_data = wf.readframes(num_frames)
-                # print(num_channels, sample_width, frame_rate, num_frames)
-                # 根据采样宽度选择 NumPy 数据类型
-                if sample_width == 2:  # 16bit PCM
-                    dtype = np.int16
-                elif sample_width == 4:  # 32bit PCM
-                    dtype = np.int32
-                else:
-                    raise ValueError(f"不支持的采样宽度: {sample_width}")
-                data = raw_data
-            # 将原始字节数据转换为 NumPy 数组
-            samples = np.frombuffer(data, dtype=dtype)
-            # 如果是立体声，转换为单声道
-            if num_channels > 1:
-                samples = samples.reshape((-1, num_channels))
-                samples = samples.mean(axis=1)  # 取平均值
-            # 归一化到 [-1.0, 1.0] 范围，并转换为 float32
-            if dtype == np.int16:
-                samples = samples.astype(np.float32) / 32768.0
-            elif dtype == np.int32:
-                samples = samples.astype(np.float32) / 2147483648.0
-            else:
-                raise ValueError("不支持的数据类型转换")
+            with sf.SoundFile(wav_file, "r") as sf_file:
+                num_channels = sf_file.channels  # 声道数
+                num_frames = sf_file.frames  # 总帧数
+                frame_rate = sf_file.samplerate  # 采样率
+                # 读取所有音频数据（返回 numpy 数组）
+                audio_data = sf_file.read()
+                samples = audio_data
+                # 如果是立体声，转换为单声道（取均值）
+                if samples.ndim == 2:  # 如果数据是二维数组（帧数, 声道数）
+                    samples = samples.mean(axis=1)  # 沿声道轴取均值
+                # 如果数据是整型（如 int16/int32），归一化到 [-1.0, 1.0]
+                if np.issubdtype(samples.dtype, np.integer):
+                    samples = samples.astype(np.float32) / np.iinfo(samples.dtype).max
+            # with wave.open(wav_file, "rb") as wf:
+            #     # 获取 WAV 文件的基本信息
+            #     num_channels = wf.getnchannels()  # 声道数
+            #     sample_width = wf.getsampwidth()  # 采样宽度（字节数）
+            #     frame_rate = wf.getframerate()  # 采样率
+            #     num_frames = wf.getnframes()  # 总帧数
+            #     # 读取音频数据
+            #     raw_data = wf.readframes(num_frames)
+            #     print(num_channels, sample_width, frame_rate, num_frames)
+            #     # 根据采样宽度选择 NumPy 数据类型
+            #     if sample_width == 2:  # 16bit PCM
+            #         dtype = np.int16
+            #     elif sample_width == 4:  # 32bit PCM
+            #         dtype = np.int32
+            #     else:
+            #         raise ValueError(f"不支持的采样宽度: {sample_width}")
+            #     data = raw_data
+            #     # 将原始字节数据转换为 NumPy 数组
+            #     samples = np.frombuffer(data, dtype=dtype)
+            #     # 如果是立体声，转换为单声道
+            #     if num_channels > 1:
+            #         samples = samples.reshape((-1, num_channels))
+            #         samples = samples.mean(axis=1)  # 取平均值
+            #     # 归一化到 [-1.0, 1.0] 范围，并转换为 float32
+            #     if dtype == np.int16:
+            #         samples = samples.astype(np.float32) / 32768.0
+            #     elif dtype == np.int32:
+            #         samples = samples.astype(np.float32) / 2147483648.0
+            #     else:
+            #         raise ValueError("不支持的数据类型转换")
+
             if not kws_flag:  # 如果还没有检测到关键词测一直执行 kws模型
                 kws_stream.accept_waveform(sample_rate, samples)
                 if keyword_spotter.is_ready(kws_stream):
