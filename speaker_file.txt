@@ -1,4 +1,1 @@
-foo /path/to/a.wav
-bar /path/to/b.wav
-foo /path/to/c.wav
-foobar /path/to/d.wav
+刘备 /home/dev/liuyu/project/kws_code/audio/ly.wav
