@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麦克风监听并发送字节数据</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 18px;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>麦克风监听并发送字节数据到后端</h1>
+    <button id="startBtn">开始监听</button>
+    <button id="stopBtn" disabled>停止监听</button>
+    <div id="status"></div>
+ 
+    <!-- 引入 RecordRTC 库 -->
+    <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script> 
+    <script>
+        let stream;
+        let recorder;
+        let socket;
+ 
+        // 初始化 WebSocket 连接
+        function initWebSocket() {
+            socket = new WebSocket('ws://192.168.102.19:8887/ws'); // 替换为你的后端 WebSocket 地址
+            socket.onopen  = () => {
+                document.getElementById('status').innerText  = 'WebSocket 连接已建立';
+            };
+            socket.onmessage  = (event) => {
+                console.log(' 从后端收到消息:', event.data); 
+            };
+            socket.onerror  = (error) => {
+                console.error('WebSocket  错误:', error);
+            };
+        }
+ 
+        // 开始录音 
+        document.getElementById('startBtn').addEventListener('click',  async () => {
+            try {
+                // 请求麦克风权限
+                stream = await navigator.mediaDevices.getUserMedia({  audio: true });
+                initWebSocket(); // 初始化 WebSocket
+ 
+                // 初始化 RecordRTC
+                recorder = RecordRTC(stream, {
+                    type: 'audio',
+                    mimeType: 'audio/wav',
+                    recorderType: RecordRTC.StereoAudioRecorder,
+                    desiredSampRate: 16000,
+                    numberOfAudioChannels: 1, // 单声道
+                    timeSlice: 100, // 每 30 秒分片
+                    ondataavailable: (blob) => {
+                        if (socket.readyState  === WebSocket.OPEN) {
+                            const fileReader = new FileReader();
+                            fileReader.onloadend  = () => {
+                                const arrayBuffer = fileReader.result;  // 获取 ArrayBuffer 数据
+                                socket.send(arrayBuffer);  // 直接发送字节数据 
+                            };
+                            fileReader.readAsArrayBuffer(blob);  // 将 Blob 转换为 ArrayBuffer
+                        }
+                    },
+                });
+ 
+                recorder.startRecording(); 
+                document.getElementById('startBtn').disabled  = true;
+                document.getElementById('stopBtn').disabled  = false;
+                document.getElementById('status').innerText  = '正在录音...';
+                console.log(' 开始录音...');
+            } catch (error) {
+                console.error(' 无法访问麦克风:', error);
+                document.getElementById('status').innerText  = '无法访问麦克风';
+            }
+        });
+ 
+        // 停止录音
+        document.getElementById('stopBtn').addEventListener('click',  () => {
+            recorder.stopRecording(()  => {
+                stream.getTracks().forEach(track  => track.stop());  // 停止麦克风流
+                socket.close();  // 关闭 WebSocket 连接
+                document.getElementById('startBtn').disabled  = false;
+                document.getElementById('stopBtn').disabled  = true;
+                document.getElementById('status').innerText  = '录音已停止';
+                console.log(' 录音已停止');
+            });
+        });
+    </script>
+</body>
+</html>

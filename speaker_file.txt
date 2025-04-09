@@ -1,0 +1,4 @@
+foo /path/to/a.wav
+bar /path/to/b.wav
+foo /path/to/c.wav
+foobar /path/to/d.wav
