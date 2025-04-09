@@ -250,9 +250,9 @@ def compute_speaker_embedding(
 
 def load_speaker_embedding_model():
     config = sherpa_onnx.SpeakerEmbeddingExtractorConfig(
-        model="/home/dev/liuyu/project/kws_code/wespeaker_zh_cnceleb_resnet34.onnx",
+        model="/home/dev/liuyu/project/kws_code/说话人识别模型/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
         num_threads=1,
-        debug=False,
+        debug=True,
         provider="cpu",
     )
     if not config.validate():
@@ -375,6 +375,8 @@ async def main(websocket: WebSocket):
                     embedding = extractor.compute(extractor_stream)
                     embedding = np.array(embedding)  # 获取当前语音的embedding
                     name = manager.search(embedding, threshold=0.6)  # 获取当前语音是谁
+                    score = manager.score("刘备", embedding)
+                    print(score)
                     if not name:
                         name = "unknown"  # 不识别这个人是谁
 
