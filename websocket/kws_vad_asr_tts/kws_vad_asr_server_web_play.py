@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 import time
@@ -195,9 +196,40 @@ import wave
 
 @app.websocket("/ws")
 async def main(websocket: WebSocket):
+    def generated_audio_callback(samples: np.ndarray, progress: float):
+        """This function is called whenever max_num_sentences sentences
+        have been processed.
+
+        Note that it is passed to C++ and is invoked in C++.
+
+        Args:
+        samples:
+            A 1-D np.float32 array containing audio samples
+        """
+        global first_message_time
+        if first_message_time is None:
+            first_message_time = time.time()
+        # 将numpy数组转换为字节数据
+        audio_bytes = samples.tobytes()
+        print("开始发送")
+        asyncio.create_task(websocket.send_bytes(audio_bytes))
+        # buffer.put(samples)
+        global started
+
+        if started is False:
+            logging.info("Start playing ...")
+        started = True
+
+        # 1 means to keep generating
+        # 0 means to stop generating
+        if killed:
+            return 0
+
+        return 1
+
     await websocket.accept()
     idx = 0
-    samples_per_read = int(0.1 * sample_rate)  # 0.1 second = 100 ms
+    # samples_per_read = int(0.1 * sample_rate)  # 0.1 second = 100 ms
     kws_stream = keyword_spotter.create_stream()
     # VAD变量
     kws_flag = False
@@ -248,6 +280,7 @@ async def main(websocket: WebSocket):
                         #         {"result": "KWS {idx}: {result }"}, ensure_ascii=False
                         #     )
                         # )
+
                         print(f"KWS {idx}: {result }")
                         idx += 1
                         # Remember to reset stream right after detecting a keyword
@@ -333,40 +366,10 @@ killed = False
 # Note: When started is True, and stopped is True, and buffer is empty,
 # we will exit the program since all audio samples have been played.
 
-sample_rate = None
 
 event = threading.Event()
 
 first_message_time = None
-
-
-def generated_audio_callback(samples: np.ndarray, progress: float):
-    """This function is called whenever max_num_sentences sentences
-    have been processed.
-
-    Note that it is passed to C++ and is invoked in C++.
-
-    Args:
-      samples:
-        A 1-D np.float32 array containing audio samples
-    """
-    global first_message_time
-    if first_message_time is None:
-        first_message_time = time.time()
-
-    buffer.put(samples)
-    global started
-
-    if started is False:
-        logging.info("Start playing ...")
-    started = True
-
-    # 1 means to keep generating
-    # 0 means to stop generating
-    if killed:
-        return 0
-
-    return 1
 
 
 # 启动 FastAPI 应用
